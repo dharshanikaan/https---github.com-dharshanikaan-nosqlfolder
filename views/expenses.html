@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenses</title>
+    <link rel="stylesheet" href="http://localhost:3000/styles.css">
+
+    <style>
+        .premium-button {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        #leaderboard-button, #download-button {
+            display: none; /* Hide by default */
+            margin-left: 10px;
+        }
+        #pagination-controls {
+            margin-top: 20px;
+        }
+        #pagination-controls button {
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Expenses</h1>
+    <button class="premium-button" id="buy-premium">Buy Premium Membership</button>
+    
+    <form id="expense-form">
+        <label for="amount">Amount:</label><br>
+        <input type="number" id="amount" required><br><br>
+        
+        <label for="description">Description:</label><br>
+        <input type="text" id="description" required><br><br>
+        
+        <label for="category">Category:</label><br>
+        <select id="category" required>
+            <option value="" disabled selected>Select a category</option>
+            <option value="Food">Food</option>
+            <option value="Petrol">Petrol</option>
+            <option value="Salary">Salary</option>
+            <option value="Utilities">Utilities</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Other">Other</option>
+        </select><br><br>
+        
+        <input type="submit" value="Add Expense">
+    </form>
+    
+    <div id="message"></div>
+    <button id="leaderboard-button">View Leaderboard</button>
+    <button id="download-button">Download Expenses</button>
+    
+    <h2>Your Expenses</h2>
+    <ul id="expense-list"></ul>
+    
+    <div id="pagination-controls">
+        <button id="prev-page" onclick="goToPage(currentPage - 1)">Previous</button>
+        <span id="current-page">Page: 1</span>
+        <button id="next-page" onclick="goToPage(currentPage + 1)">Next</button>
+        <label for="page-size">Items per page:</label>
+        <select id="page-size" onchange="changePageSize()">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+        </select>
+    </div>
+    
+    <h2>Downloaded Files</h2>
+    <ul id="downloaded-files-list"></ul>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        let currentPage = 1; // Start from the first page
+        let pageSize = 10; // Default page size
+
+        // Helper function to check and load user status
+        const loadUserStatus = async () => {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/users/status', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = data.isPremium ? 'You are a Premium Member!' : 'You are a Regular Member.';
+                document.getElementById('leaderboard-button').style.display = data.isPremium ? 'inline' : 'none';
+                document.getElementById('download-button').style.display = data.isPremium ? 'inline' : 'none';
+            }
+        };
+
+        // Fetch and display user's expenses with pagination
+        const loadExpenses = async (page, pageSize) => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/expenses?page=${page}&pageSize=${pageSize}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch expenses');
+                }
+
+                const data = await response.json();
+                const expenses = data.expenses;
+
+                if (Array.isArray(expenses)) {
+                    const expenseList = document.getElementById('expense-list');
+                    expenseList.innerHTML = '';
+
+                    expenses.forEach(expense => {
+                        const li = document.createElement('li');
+                        li.textContent = `${expense.description} - ₹${expense.amount} [${expense.category}]`;
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.onclick = () => deleteExpense(expense.id);
+                        li.appendChild(deleteButton);
+                        expenseList.appendChild(li);
+                    });
+
+                    document.getElementById('current-page').textContent = `Page: ${currentPage}`;
+                }
+            } catch (error) {
+                console.error("Error loading expenses:", error);
+                document.getElementById('message').textContent = "An error occurred while loading expenses. Please try again.";
+            }
+        };
+
+        // Pagination handler (Go to previous/next page)
+        const goToPage = (page) => {
+            if (page < 1) return; // Prevent going to negative pages
+            currentPage = page;
+            loadExpenses(currentPage, pageSize); // Reload expenses for the selected page
+        };
+
+        // Change page size handler
+        const changePageSize = () => {
+            pageSize = parseInt(document.getElementById('page-size').value);
+            currentPage = 1; // Reset to the first page when page size is changed
+            loadExpenses(currentPage, pageSize); // Reload expenses with the new page size
+        };
+
+        // Delete an expense
+        const deleteExpense = async (expenseId) => {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/expenses', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ expenseId }),
+            });
+
+            const data = await response.json();
+            const messageDiv = document.getElementById('message');
+
+            if (response.ok) {
+                messageDiv.textContent = 'Expense deleted successfully!';
+                loadExpenses(currentPage, pageSize); // Refresh the expense list
+            } else {
+                messageDiv.textContent = data.message;
+            }
+        };
+
+        // Add a new expense
+        document.getElementById('expense-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const amount = document.getElementById('amount').value;
+            const description = document.getElementById('description').value;
+            const category = document.getElementById('category').value;
+            const token = localStorage.getItem('token');
+
+            try {
+                const response = await fetch('/api/expenses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ amount, description, category }),
+                });
+
+                const data = await response.json();
+                const messageDiv = document.getElementById('message');
+
+                if (response.ok) {
+                    messageDiv.textContent = 'Expense added successfully!';
+                    loadExpenses(currentPage, pageSize); // Refresh the expense list
+                } else {
+                    messageDiv.textContent = data.message;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('message').textContent = 'Network error.';
+            }
+        });
+
+        document.getElementById('buy-premium').addEventListener('click', async () => {
+            const token = localStorage.getItem('token');
+
+            const orderResponse = await fetch('/api/premium/purchase/order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            const orderData = await orderResponse.json();
+
+            if (!orderResponse.ok) {
+                document.getElementById('message').textContent = orderData.message;
+                return;
+            }
+
+            const options = {
+                key: 'rzp_test_bo86XocxRgynHk', // Your Razorpay key ID
+                amount: orderData.amount,
+                currency: 'INR',
+                name: 'Expense Tracker',
+                order_id: orderData.orderId,
+                handler: async function (response) {
+                    const paymentResponse = await fetch('/api/premium/purchase/success', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            orderId: orderData.orderId,
+                            paymentId: response.razorpay_payment_id,
+                        }),
+                    });
+
+                    if (paymentResponse.ok) {
+                        document.getElementById('message').textContent = 'Payment successful! You are now a Premium Member!';
+                        loadUserStatus(); // Refresh user status
+                    } else {
+                        document.getElementById('message').textContent = 'Payment failed.';
+                    }
+                },
+                prefill: {
+                    name: 'Your Name',
+                    email: 'your.email@example.com',
+                },
+                theme: {
+                    color: '#F37254',
+                },
+            };
+
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+        });
+
+        // Download expenses functionality for premium users
+        document.getElementById('download-button').addEventListener('click', async () => {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/expenses/download', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                const filename = data.filename;
+                const fileUrl = data.fileURL;
+
+                // Create a temporary <a> element for the download
+                const downloadLink = document.createElement('a');
+                downloadLink.href = fileUrl;
+                downloadLink.download = filename;
+                downloadLink.style.display = 'none';
+
+                // Append to document and trigger the download
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                // Save the downloaded file details to localStorage
+                const downloadedFiles = JSON.parse(localStorage.getItem('downloadedFiles')) || [];
+                downloadedFiles.push({ filename, fileUrl });
+                localStorage.setItem('downloadedFiles', JSON.stringify(downloadedFiles));
+
+                // Display the downloaded file in the list
+                displayDownloadedFiles();
+            } else {
+                console.error("Download failed:", data.message);
+                document.getElementById('message').textContent = data.message;
+            }
+        });
+
+        // Function to display the downloaded files list from localStorage
+        const displayDownloadedFiles = () => {
+            const downloadedFiles = JSON.parse(localStorage.getItem('downloadedFiles')) || [];
+            const downloadedFilesList = document.getElementById('downloaded-files-list');
+            downloadedFilesList.innerHTML = ''; // Clear the list
+
+            downloadedFiles.forEach(file => {
+                if (file.filename) {
+                    const listItem = document.createElement('li');
+                    const userId = file.filename.split('-')[2]; // Extract UserId from filename
+                    listItem.textContent = `${file.filename} (UserId: ${userId})`;
+                    downloadedFilesList.appendChild(listItem);
+                }
+            });
+        };
+
+        // Load user status, expenses, and downloaded files on page load
+        window.onload = () => {
+            loadUserStatus();
+            loadExpenses(currentPage, pageSize);
+            displayDownloadedFiles(); // Load downloaded files from localStorage
+        };
+
+        // Redirect to the leaderboard page on button click
+    document.getElementById('leaderboard-button').addEventListener('click', () => {
+        window.location.href = '/leaderboard'; // Redirect to the leaderboard route
+    });
+    </script>
+</body>
+</html>

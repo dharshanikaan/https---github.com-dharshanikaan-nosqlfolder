@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard</title>
+    <link rel="stylesheet" href="http://localhost:3000/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Leaderboard</h1>
+        
+        <!-- Table to display leaderboard -->
+        <table id="leaderboardTable">
+            <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>User Name</th>
+                    <th>Total Expenses</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Leaderboard data will be populated here dynamically -->
+            </tbody>
+        </table>
+
+        <!-- Button to go back to the dashboard -->
+        <button onclick="window.location.href='/expenses';">Back to Dashboard</button>
+    </div>
+
+    <script>
+ async function fetchLeaderboard() {
+    try {
+      
+        const response = await fetch('/api/premium/features/leaderboard', {
+    method: 'GET',
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}` // Send token in header
+    },
+    cache: 'no-store' // Prevent caching of the response
+});
+        if (response.status === 401) {
+            alert('You need to be logged in to access the leaderboard.');
+            window.location.href = '/login';  // Redirect to login
+            return;
+        }
+
+        if (response.status === 403) {
+            alert('You need a premium membership to access the leaderboard.');
+            window.location.href = '/upgrade';  // Redirect to premium upgrade page
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error('Error: ' + response.statusText);
+        }
+
+        const data = await response.json();
+
+        
+
+        if (data.length === 0) {
+            alert('No leaderboard data found.');
+            return;
+        }
+
+        // Populate the leaderboard table with data
+        const leaderboardTable = document.getElementById('leaderboardTable').getElementsByTagName('tbody')[0];
+        leaderboardTable.innerHTML = ''; // Clear existing rows (if any)
+
+        data.forEach(user => {
+            const row = leaderboardTable.insertRow();
+            row.insertCell(0).textContent = user.id; // User ID
+            row.insertCell(1).textContent = user.name; // User Name
+            row.insertCell(2).textContent = user.totalExpense; // Total Expenses
+        });
+    } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+        alert('Error loading leaderboard. Please try again later.');
+    }
+}
+
+// Fetch leaderboard data when the page loads
+window.onload = fetchLeaderboard;
+
+    </script>
+</body>
+</html>

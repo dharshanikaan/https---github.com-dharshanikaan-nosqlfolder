@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buy Premium Membership</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+    <h1>Buy Premium Membership</h1>
+    <button id="buyPremiumBtn">Buy Premium</button>
+
+    <script>
+        document.getElementById('buyPremiumBtn').addEventListener('click', async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please log in first.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/premium/order', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const options = {
+                        key: 'rzp_test_bo86XocxRgynHk', // Your Razorpay key ID
+                        amount: data.amount,
+                        currency: 'INR',
+                        name: 'Your Company Name',
+                        description: 'Purchase Premium Membership',
+                        order_id: data.orderId,
+                        handler: async (paymentResponse) => {
+                            const paymentData = {
+                                orderId: data.orderId,
+                                paymentId: paymentResponse.razorpay_payment_id
+                            };
+
+                            const paymentResponse = await fetch('/api/premium/success', {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(paymentData)
+                            });
+
+                            if (paymentResponse.ok) {
+                                alert('Payment successful! Redirecting to expenses...');
+                                window.location.href = '/expenses';
+                            } else {
+                                alert('Payment failed. Please try again.');
+                            }
+                        },
+                        theme: {
+                            color: '#F37254'
+                        }
+                    };
+
+                    const razorpay = new Razorpay(options);
+                    razorpay.open();
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error occurred while creating order.');
+            }
+        });
+    </script>
+</body>
+</html>
