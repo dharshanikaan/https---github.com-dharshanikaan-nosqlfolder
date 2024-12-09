@@ -1,10 +1,8 @@
 const { body, validationResult } = require('express-validator');
-const { models } = require('../util/database'); // Correct import
-const User = models.User; // Use the imported User model
-const bcrypt = require('bcrypt');
+const User = require('../models/user'); // Import the User model
 const jwt = require('jsonwebtoken');
 
-
+// Signup
 const signup = [
     body('name').notEmpty().withMessage('Name is required.'),
     body('email').isEmail().withMessage('Valid email is required.'),
@@ -18,13 +16,13 @@ const signup = [
         const { name, email, password } = req.body;
 
         try {
-            const existingUser = await User.findOne({ where: { email } });
+            const existingUser = await User.findOne({ email });
             if (existingUser) {
                 return res.status(400).json({ message: 'User already exists.' });
             }
 
-            const hashedPassword = await bcrypt.hash(password, 10);
-            await User.create({ name, email, password: hashedPassword });
+            const user = new User({ name, email, password });
+            await user.save();
             res.status(201).json({ message: 'User created successfully.' });
         } catch (error) {
             console.error(error);
@@ -33,18 +31,19 @@ const signup = [
     }
 ];
 
+// Login
 const login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: 'User not authorized.' });
+            return res.status(401).json({ message: 'Invalid credentials.' });
         }
 
         const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -55,11 +54,12 @@ const login = async (req, res) => {
     }
 };
 
+// Get User Status
 const getUserStatus = async (req, res) => {
     const userId = req.userId;
 
     try {
-        const user = await User.findByPk(userId);
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }

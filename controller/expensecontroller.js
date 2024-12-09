@@ -1,7 +1,8 @@
-
-// expensecontroller.js
 const AWS = require('aws-sdk');
-const { models, sequelize } = require('../util/database');
+const mongoose = require('mongoose');  // Import mongoose
+const Expense = require('../models/expense');
+const User = require('../models/user');
+
 const { body, validationResult } = require('express-validator');
 
 const s3 = new AWS.S3({
@@ -16,16 +17,12 @@ const getExpenses = async (req, res) => {
     const { pageSize = 10, page = 1 } = req.query; // Get page size and page number from query params (default pageSize is 10)
 
     const limit = parseInt(pageSize); // Number of items per page
-    const offset = (parseInt(page) - 1) * limit; // Offset to fetch the correct page
+    const skip = (parseInt(page) - 1) * limit; // Skip to the correct page
 
     try {
-        const expenses = await models.Expense.findAll({
-            where: { userId },
-            limit,
-            offset,
-        });
+        const expenses = await Expense.find({ userId }).limit(limit).skip(skip);
 
-        const totalExpenses = await models.Expense.count({ where: { userId } });
+        const totalExpenses = await Expense.countDocuments({ userId });
         const totalPages = Math.ceil(totalExpenses / limit); // Calculate the total number of pages
 
         res.status(200).json({
@@ -45,13 +42,13 @@ const getExpenses = async (req, res) => {
 const downloadExpense = async (req, res) => {
     try {
         const userId = req.userId; // Ensure this is set by authenticateToken
-        const user = await models.User.findByPk(userId);
+        const user = await User.findById(userId);
 
         if (!user) {
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        const expenses = await user.getExpenses();
+        const expenses = await Expense.find({ userId });
         if (!expenses || expenses.length === 0) {
             return res.status(404).json({ message: 'No expenses found.' });
         }
@@ -112,21 +109,27 @@ const addExpense = [
         const userId = req.userId;
 
         amount = Number(amount);
-        const transaction = await sequelize.transaction();
 
         try {
-            const newExpense = await models.Expense.create({ amount, description, category, userId }, { transaction });
+            // Start a session for transaction-like operations (MongoDB doesn't support transactions in the same way as relational databases)
+            const session = await mongoose.startSession();
+            session.startTransaction();
 
-            const user = await models.User.findByPk(userId, { transaction });
+            // Create the new expense
+            const newExpense = new Expense({ amount, description, category, userId });
+            await newExpense.save({ session });
+
+            const user = await User.findById(userId);
             if (user) {
                 user.totalExpense += amount;
-                await user.save({ transaction });
+                await user.save({ session });
             }
 
-            await transaction.commit();
+            await session.commitTransaction();
+            session.endSession();
+
             res.status(201).json(newExpense);
         } catch (error) {
-            await transaction.rollback();
             console.error('Error adding expense:', error);
             res.status(500).json({ message: 'Error adding expense.', error: error.message });
         }
@@ -138,26 +141,30 @@ const deleteExpense = async (req, res) => {
     const { expenseId } = req.body;
     const userId = req.userId;
 
-    const transaction = await sequelize.transaction();
     try {
-        const expense = await models.Expense.findOne({ where: { id: expenseId, userId }, transaction });
+        // Start a session for transaction-like operations
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
+        const expense = await Expense.findOne({ _id: expenseId, userId });
         if (!expense) {
             return res.status(404).json({ message: 'Expense not found or user not authorized.' });
         }
 
-        const user = await models.User.findByPk(userId, { transaction });
+        const user = await User.findById(userId);
         if (user) {
             user.totalExpense -= expense.amount;
-            await user.save({ transaction });
+            await user.save({ session });
         }
 
-        await models.Expense.destroy({ where: { id: expenseId }, transaction });
-        await transaction.commit();
+        await expense.remove({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
         res.status(200).json({ message: 'Expense deleted successfully.' });
     } catch (error) {
-        await transaction.rollback();
-        console.error('Error deleting expense:', error.message);
+        console.error('Error deleting expense:', error);
         res.status(500).json({ message: 'Error deleting expense.', error: error.message });
     }
 };

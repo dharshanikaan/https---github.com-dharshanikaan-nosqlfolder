@@ -1,10 +1,13 @@
 const express = require('express');
-const { createOrder, handlePaymentSuccess } = require('../controller/purchasecontroller'); // Ensure this path is correct
-const authenticateToken = require('../middleware/authenticatetoken');
+const { createOrder, handlePaymentSuccess } = require('../controller/purchasecontroller');
+const authenticateToken = require('../middleware/authenticateToken');
 
 const router = express.Router();
 
-router.post('/order', authenticateToken, createOrder); // Protect with authenticateToken middleware
-router.post('/success', authenticateToken, handlePaymentSuccess); // Protect with authenticateToken middleware
+// Route for creating a new order
+router.post('/order', authenticateToken, createOrder);
+
+// Route for handling the success of a payment
+router.post('/success', authenticateToken, handlePaymentSuccess);
 
 module.exports = router;

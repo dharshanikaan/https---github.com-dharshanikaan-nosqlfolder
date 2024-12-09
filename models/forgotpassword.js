@@ -1,23 +1,15 @@
-module.exports = (sequelize, DataTypes) => {
-    const ForgotPasswordRequest = sequelize.define('ForgotPasswordRequest', {
-        id: {
-            type: DataTypes.UUID,
-            defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
-        },
-        userId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-        },
-        isActive: {
-            type: DataTypes.BOOLEAN,
-            defaultValue: true,
-        },
-    });
+const mongoose = require('mongoose');
 
-    ForgotPasswordRequest.associate = (models) => {
-        ForgotPasswordRequest.belongsTo(models.User, { foreignKey: 'userId' });
-    };
+const forgotPasswordRequestSchema = new mongoose.Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+}, { timestamps: true });
 
-    return ForgotPasswordRequest;
-};
+module.exports = mongoose.model('ForgotPasswordRequest', forgotPasswordRequestSchema);

@@ -1,6 +1,5 @@
-const { models } = require('../util/database'); // Ensure correct import
-const User = models.User;
-const ForgotPasswordRequest = models.ForgotPasswordRequest; // Get from models
+const User = require('../models/user'); // Ensure correct model import
+const ForgotPasswordRequest = require('../models/forgotpassword'); // Ensure correct model import
 const SibApiV3Sdk = require('sib-api-v3-sdk');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
@@ -16,14 +15,15 @@ const forgotPassword = async (req, res) => {
     const { email } = req.body;
 
     try {
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const request = await ForgotPasswordRequest.create({ userId: user.id });
+        const request = new ForgotPasswordRequest({ userId: user._id });
+        await request.save();
 
-        const resetLink = `http://localhost:3000/password/resetpassword/${request.id}`;
+        const resetLink = `http://localhost:3000/password/resetpassword/${request._id}`;
         const sender = { name: 'Your App Name', email: 'dharshanikaan@gmail.com' };
         const emailContent = {
             sender,
@@ -46,12 +46,16 @@ const resetPassword = async (req, res) => {
     const { newPassword } = req.body;
 
     try {
-        const request = await ForgotPasswordRequest.findOne({ where: { id, isActive: true } });
-        if (!request) {
+        const request = await ForgotPasswordRequest.findById(id);
+        if (!request || !request.isActive) {
             return res.status(400).json({ message: 'Invalid or expired reset link.' });
         }
 
-        const user = await User.findByPk(request.userId);
+        const user = await User.findById(request.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         await user.save();

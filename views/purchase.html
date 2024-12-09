@@ -17,7 +17,7 @@
                 alert('Please log in first.');
                 return;
             }
-
+        
             try {
                 const response = await fetch('/api/premium/order', {
                     method: 'POST',
@@ -26,9 +26,9 @@
                         'Content-Type': 'application/json'
                     }
                 });
-
+        
                 const data = await response.json();
-
+        
                 if (response.ok) {
                     const options = {
                         key: 'rzp_test_bo86XocxRgynHk', // Your Razorpay key ID
@@ -42,7 +42,7 @@
                                 orderId: data.orderId,
                                 paymentId: paymentResponse.razorpay_payment_id
                             };
-
+        
                             const paymentResponse = await fetch('/api/premium/success', {
                                 method: 'POST',
                                 headers: {
@@ -51,7 +51,7 @@
                                 },
                                 body: JSON.stringify(paymentData)
                             });
-
+        
                             if (paymentResponse.ok) {
                                 alert('Payment successful! Redirecting to expenses...');
                                 window.location.href = '/expenses';
@@ -63,7 +63,7 @@
                             color: '#F37254'
                         }
                     };
-
+        
                     const razorpay = new Razorpay(options);
                     razorpay.open();
                 } else {
@@ -74,6 +74,7 @@
                 alert('Error occurred while creating order.');
             }
         });
-    </script>
+        </script>
+        
 </body>
 </html>

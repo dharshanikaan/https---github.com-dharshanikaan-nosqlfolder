@@ -1,5 +1,6 @@
 const Razorpay = require('razorpay');
-const { models } = require('../util/database'); // Import models only once
+const Order = require('../models/order'); // Import Order model (Mongoose)
+const User = require('../models/user'); // Import User model (Mongoose)
 require('dotenv').config();
 
 // Initialize Razorpay
@@ -8,6 +9,7 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+// Create a new Razorpay order
 const createOrder = async (req, res) => {
     const options = {
         amount: 50000, // ₹500 in paisa
@@ -18,7 +20,15 @@ const createOrder = async (req, res) => {
 
     try {
         const order = await razorpay.orders.create(options);
-        await models.Order.create({ userId: req.userId, orderId: order.id, status: 'PENDING' });
+
+        // Create an Order document in MongoDB
+        const newOrder = new Order({
+            userId: req.userId,
+            orderId: order.id,
+            status: 'PENDING'
+        });
+        await newOrder.save();
+
         return res.status(201).json({ orderId: order.id, amount: options.amount });
     } catch (error) {
         console.error('Error creating order:', error);
@@ -26,11 +36,13 @@ const createOrder = async (req, res) => {
     }
 };
 
+// Handle the payment success and mark user as premium
 const handlePaymentSuccess = async (req, res) => {
     const { orderId, paymentId } = req.body;
 
     try {
-        const order = await models.Order.findOne({ where: { orderId } });
+        // Find the order by orderId in the database
+        const order = await Order.findOne({ orderId });
         if (!order) {
             return res.status(404).json({ message: 'Order not found.' });
         }
@@ -39,8 +51,8 @@ const handlePaymentSuccess = async (req, res) => {
         order.status = 'SUCCESSFUL';
         await order.save();
 
-        // Mark user as premium
-        await models.User.update({ isPremium: true }, { where: { id: order.userId } });
+        // Mark user as premium in the User model
+        await User.updateOne({ _id: order.userId }, { $set: { isPremium: true } });
 
         return res.status(200).json({ message: 'Payment successful.' });
     } catch (error) {

@@ -1,31 +1,23 @@
-module.exports = (sequelize, DataTypes) => {
-    const Expense = sequelize.define('Expense', {
-        id: {
-            type: DataTypes.INTEGER,
-            autoIncrement: true,
-            primaryKey: true,
-        },
-        amount: {
-            type: DataTypes.FLOAT,
-            allowNull: false,
-        },
-        description: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        category: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        userId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-        },
-    });
+const mongoose = require('mongoose');
 
-    Expense.associate = (models) => {
-        Expense.belongsTo(models.User, { foreignKey: 'userId' });
-    };
+const expenseSchema = new mongoose.Schema({
+    amount: {
+        type: Number,
+        required: true,
+    },
+    description: {
+        type: String,
+        required: true,
+    },
+    category: {
+        type: String,
+        required: true,
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+}, { timestamps: true });
 
-    return Expense;
-};
+module.exports = mongoose.model('Expense', expenseSchema);
