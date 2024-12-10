@@ -1,5 +1,5 @@
-const AWS = require('aws-sdk');
 const mongoose = require('mongoose');
+const AWS = require('aws-sdk');
 const Expense = require('../models/expense');
 const User = require('../models/user');
 
@@ -135,28 +135,34 @@ const addExpense = [
     }
 ];
 
-// Delete an expense and update user totalExpense
+
 const deleteExpense = async (req, res) => {
-    const { expenseId } = req.body;
+    const { expenseId } = req.body; // Get expenseId from the body of the request
     const userId = req.userId;
 
+    if (!expenseId) {
+        return res.status(400).json({ message: 'Expense ID is required.' });
+    }
+
     try {
-        // Start a session for transaction-like operations
         const session = await mongoose.startSession();
         session.startTransaction();
 
+        // Find the expense to be deleted
         const expense = await Expense.findOne({ _id: expenseId, userId });
         if (!expense) {
             return res.status(404).json({ message: 'Expense not found or user not authorized.' });
         }
 
+        // Update the user's total expense
         const user = await User.findById(userId);
         if (user) {
             user.totalExpense -= expense.amount;
             await user.save({ session });
         }
 
-        await expense.remove({ session });
+        // Delete the expense using deleteOne()
+        await Expense.deleteOne({ _id: expenseId, userId }).session(session);
 
         await session.commitTransaction();
         session.endSession();
@@ -167,5 +173,6 @@ const deleteExpense = async (req, res) => {
         res.status(500).json({ message: 'Error deleting expense.', error: error.message });
     }
 };
+
 
 module.exports = { addExpense, getExpenses, deleteExpense, downloadExpense };

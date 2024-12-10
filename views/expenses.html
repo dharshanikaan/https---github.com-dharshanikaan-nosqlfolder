@@ -96,43 +96,49 @@
 
         // Fetch and display user's expenses with pagination
         const loadExpenses = async (page, pageSize) => {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/expenses?page=${page}&pageSize=${pageSize}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/expenses?page=${page}&pageSize=${pageSize}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
 
-                if (!response.ok) {
-                    throw new Error('Failed to fetch expenses');
-                }
+        if (!response.ok) {
+            throw new Error('Failed to fetch expenses');
+        }
 
-                const data = await response.json();
-                const expenses = data.expenses;
+        const data = await response.json();
+        const expenses = data.expenses;
 
-                if (Array.isArray(expenses)) {
-                    const expenseList = document.getElementById('expense-list');
-                    expenseList.innerHTML = '';
+        if (Array.isArray(expenses)) {
+            const expenseList = document.getElementById('expense-list');
+            expenseList.innerHTML = ''; // Clear the previous list
 
-                    expenses.forEach(expense => {
-                        const li = document.createElement('li');
-                        li.textContent = `${expense.description} - ₹${expense.amount} [${expense.category}]`;
-                        const deleteButton = document.createElement('button');
-                        deleteButton.textContent = 'Delete';
-                        deleteButton.onclick = () => deleteExpense(expense.id);
-                        li.appendChild(deleteButton);
-                        expenseList.appendChild(li);
-                    });
+            expenses.forEach(expense => {
+                const li = document.createElement('li');
+                li.textContent = `${expense.description} - ₹${expense.amount} [${expense.category}]`;
 
-                    document.getElementById('current-page').textContent = `Page: ${currentPage}`;
-                }
-            } catch (error) {
-                console.error("Error loading expenses:", error);
-                document.getElementById('message').textContent = "An error occurred while loading expenses. Please try again.";
-            }
-        };
+                // Create the Delete Button for each expense
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => deleteExpense(expense._id);  // Make sure the ID is correct (use _id or id based on your data)
+
+                // Append the delete button to the list item
+                li.appendChild(deleteButton);
+                expenseList.appendChild(li);
+            });
+
+            // Update the current page display
+            document.getElementById('current-page').textContent = `Page: ${currentPage}`;
+        }
+    } catch (error) {
+        console.error("Error loading expenses:", error);
+        document.getElementById('message').textContent = "An error occurred while loading expenses. Please try again.";
+    }
+};
+
 
         // Pagination handler (Go to previous/next page)
         const goToPage = (page) => {
@@ -148,28 +154,36 @@
             loadExpenses(currentPage, pageSize); // Reload expenses with the new page size
         };
 
-        // Delete an expense
-        const deleteExpense = async (expenseId) => {
-            const token = localStorage.getItem('token');
-            const response = await fetch('/api/expenses', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ expenseId }),
-            });
+   
+   // Frontend function to delete expense
+   const deleteExpense = async (expenseId) => {
+    const token = localStorage.getItem('token');
+    console.log('Deleting expense with ID:', expenseId);  // Log the expenseId
 
-            const data = await response.json();
-            const messageDiv = document.getElementById('message');
+    const requestBody = { expenseId };
+    console.log('Request Body:', requestBody);  // Log the request body
 
-            if (response.ok) {
-                messageDiv.textContent = 'Expense deleted successfully!';
-                loadExpenses(currentPage, pageSize); // Refresh the expense list
-            } else {
-                messageDiv.textContent = data.message;
-            }
-        };
+    const response = await fetch('/api/expenses', {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+    const messageDiv = document.getElementById('message');
+
+    if (response.ok) {
+        messageDiv.textContent = 'Expense deleted successfully!';
+        loadExpenses(currentPage, pageSize); // Refresh the expense list after deletion
+    } else {
+        messageDiv.textContent = data.message;
+    }
+};
+
+
 
         // Add a new expense
         document.getElementById('expense-form').addEventListener('submit', async (event) => {
@@ -310,7 +324,7 @@
                 if (file.filename) {
                     const listItem = document.createElement('li');
                     const userId = file.filename.split('-')[2]; // Extract UserId from filename
-                    listItem.textContent = `${file.filename} (UserId: ${userId})`;
+                    listItem.textContent = `${file.filename} `;
                     downloadedFilesList.appendChild(listItem);
                 }
             });
