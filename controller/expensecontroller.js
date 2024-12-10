@@ -1,5 +1,5 @@
 const AWS = require('aws-sdk');
-const mongoose = require('mongoose');  // Import mongoose
+const mongoose = require('mongoose');
 const Expense = require('../models/expense');
 const User = require('../models/user');
 
@@ -8,22 +8,21 @@ const { body, validationResult } = require('express-validator');
 const s3 = new AWS.S3({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: 'us-west-2', // Adjust as needed
+    region: 'us-west-2',
 });
 
 // Fetch paginated expenses
 const getExpenses = async (req, res) => {
     const userId = req.userId;
-    const { pageSize = 10, page = 1 } = req.query; // Get page size and page number from query params (default pageSize is 10)
+    const { pageSize = 10, page = 1 } = req.query;
 
-    const limit = parseInt(pageSize); // Number of items per page
-    const skip = (parseInt(page) - 1) * limit; // Skip to the correct page
+    const limit = parseInt(pageSize);
+    const skip = (parseInt(page) - 1) * limit;
 
     try {
         const expenses = await Expense.find({ userId }).limit(limit).skip(skip);
-
         const totalExpenses = await Expense.countDocuments({ userId });
-        const totalPages = Math.ceil(totalExpenses / limit); // Calculate the total number of pages
+        const totalPages = Math.ceil(totalExpenses / limit);
 
         res.status(200).json({
             expenses,
@@ -41,7 +40,7 @@ const getExpenses = async (req, res) => {
 // Upload expenses to S3 and return the file URL
 const downloadExpense = async (req, res) => {
     try {
-        const userId = req.userId; // Ensure this is set by authenticateToken
+        const userId = req.userId;
         const user = await User.findById(userId);
 
         if (!user) {
@@ -55,7 +54,7 @@ const downloadExpense = async (req, res) => {
 
         const stringifiedExpenses = JSON.stringify(expenses);
         const now = new Date();
-        const formattedDate = now.toISOString().slice(0, 10); // Format date as YYYY-MM-DD
+        const formattedDate = now.toISOString().slice(0, 10); 
         const filename = `Expenses-UserId-${userId}-${formattedDate}.txt`;
 
         // Upload to S3 and get the file URL
